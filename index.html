@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Linkery.Ai - Smart Memory</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #09090b;
+            --card: #18181b;
+            --primary: #8b5cf6; 
+            --ai-gradient: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%);
+            --text: #fafafa;
+            --text-dim: #a1a1aa;
+            --border: #27272a;
+            --fav: #ef4444;
+            --btn-contact: #1d4ed8;
+            --btn-share: #15803d;
+            --btn-export: #c2410c;
+            --btn-import: #7c3aed;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--text); padding-bottom: 100px; overflow-x: hidden; width: 100%; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: var(--card); border-bottom: 1px solid var(--border); flex-wrap: nowrap; gap: 10px; }
+        .logo-area { display: flex; align-items: center; gap: 10px; cursor: pointer; min-width: max-content; }
+        .app-icon { width: 36px; height: 36px; background: var(--ai-gradient); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; }
+        .logo-text h1 { font-size: 18px; font-weight: 800; line-height: 1; }
+        .logo-text span { font-size: 9px; color: var(--text-dim); text-transform: uppercase; font-weight: 600; }
+        
+        .sync-tools { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+        .btn-sync { color: white; border: 1px solid rgba(255,255,255,0.1); padding: 7px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 11px; white-space: nowrap; }
+        
+        .tabs { display: flex; gap: 10px; padding: 15px; overflow-x: auto; scrollbar-width: none; }
+        .chip { background: var(--card); padding: 8px 16px; border-radius: 20px; white-space: nowrap; cursor: pointer; border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .chip.active { border-color: var(--primary); background: rgba(139, 92, 246, 0.1); color: var(--primary); }
+        .chip.fav-chip { background: var(--fav); color: white; border: none; }
+        .chip.hub-chip { background: var(--btn-import); color: white; border: none; }
+        .chip.archive-chip { background: #52525b; color: white; border: none; }
+
+        .link-container { position: relative; overflow: hidden; margin: 0 15px 12px; border-radius: 18px; touch-action: pan-y; }
+        .swipe-actions-left { position: absolute; left: 0; top: 0; bottom: 0; display: flex; width: 140px; z-index: 1; }
+        .swipe-actions-right { position: absolute; right: 0; top: 0; bottom: 0; display: flex; width: 140px; z-index: 1; }
+        .action-btn { flex: 1; display: flex; align-items: center; justify-content: center; color: white; border: none; cursor: pointer; }
+        .action-del { background: #ef4444; }
+        .action-archive { background: #52525b; }
+        .action-fav { background: #eab308; }
+        .action-pin { background: #3b82f6; }
+
+        .link-card { 
+            background: var(--card); 
+            padding: 16px; 
+            display: flex; 
+            gap: 15px; 
+            border: 1px solid var(--border); 
+            position: relative; 
+            z-index: 2; 
+            transition: transform 0.3s ease;
+            border-radius: 18px;
+            width: 100%;
+        }
+
+        .link-img { width: 50px; height: 50px; border-radius: 12px; background: #000; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); overflow: hidden; }
+        .link-img img { width: 100%; height: 100%; object-fit: cover; }
+        .link-info { flex: 1; min-width: 0; }
+        .link-info h4 { font-size: 15px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 25px;}
+        .link-info p { font-size: 12px; color: var(--text-dim); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .external-icon { position: absolute; top: 16px; right: 16px; color: #22c55e; cursor: pointer; z-index: 3; }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(10px); }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--card); width: 100%; max-width: 480px; border-radius: 28px; padding: 25px; border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; }
+        
+        .field { margin-bottom: 12px; }
+        .field label { display: block; font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; font-weight: 700; }
+        input, select, textarea { width: 100%; background: #000; border: 1px solid var(--border); padding: 12px; color: white; border-radius: 10px; outline: none; }
+
+        .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-height: 140px; overflow-y: auto; padding: 10px; background: #000; border-radius: 10px; border: 1px solid var(--border); }
+        .icon-box { padding: 10px; text-align: center; cursor: pointer; border-radius: 8px; color: #52525b; }
+        .icon-box.selected { background: var(--primary); color: white; }
+        
+        .color-dots { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-top: 5px; }
+        .dot { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+        .dot.active { border-color: white; transform: scale(1.1); }
+        
+        .btn-add { position: fixed; bottom: 30px; right: 20px; width: 64px; height: 64px; border-radius: 32px; background: var(--ai-gradient); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .btn-save { width: 100%; background: var(--primary); color: white; padding: 14px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; margin-top: 10px; }
+        .btn-cancel { width: 100%; background: transparent; color: var(--text-dim); padding: 10px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; margin-top: 5px; }
+        
+        .hub-card { background: #000; padding: 15px; border-radius: 15px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+        .badge-container { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 4px; margin-top: 5px; gap: 6px; }
+        .badge-folder-icon { display: flex; align-items: center; justify-content: center; color: white; }
+        .badge-folder-name { font-size: 10px; font-weight: 700; color: white; line-height: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo-area" onclick="location.reload()">
+            <div class="app-icon"><i data-lucide="zap"></i></div>
+            <div class="logo-text"><h1>Linkery.Ai</h1><span>by Saad Mounir</span></div>
+        </div>
+        <div class="sync-tools">
+            <button class="btn-sync" style="background:var(--btn-contact)" onclick="openContact()"><i data-lucide="mail"></i> Contact</button>
+            <button class="btn-sync" style="background:var(--btn-share)" onclick="openShareOptions()"><i data-lucide="share-2"></i> Share</button>
+            <button class="btn-sync" style="background:var(--btn-export)" onclick="exportData()"><i data-lucide="download"></i> Export</button>
+            <button class="btn-sync" style="background:var(--btn-import)" onclick="document.getElementById('imp').click()"><i data-lucide="upload"></i> Import</button>
+            <input type="file" id="imp" hidden onchange="importData(event)">
+        </div>
+    </div>
+
+    <div class="tabs" id="tabContainer"></div>
+
+    <div style="padding: 0 15px 15px;">
+        <input type="text" id="search" placeholder="Search memories..." onkeyup="renderLinks()" style="background:var(--card)">
+    </div>
+
+    <div class="list" id="linkList"></div>
+    <button class="btn-add" onclick="openFullModal()"><i data-lucide="plus" size="32"></i></button>
+
+    <div class="modal" id="contactModal">
+        <div class="modal-content" style="max-width:350px;">
+            <h2 style="text-align:center; margin-bottom:15px;">Contact</h2>
+            <button class="btn-save" style="background:#25d366; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="window.open('https://wa.me/393899528528')"><i data-lucide="message-circle"></i> WhatsApp Saad</button>
+            <button class="btn-save" style="background:#ea4335; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="window.open('https://mail.google.com/mail/?view=cm&fs=1&to=saadariano@gmail.com')"><i data-lucide="mail"></i> Email Saad</button>
+            <button class="btn-cancel" onclick="closeModal('contactModal')">Close</button>
+        </div>
+    </div>
+
+    <div class="modal" id="shareModal">
+        <div class="modal-content" style="max-width:350px;">
+            <h2 style="text-align:center; margin-bottom:15px;">Share Collection</h2>
+            <button class="btn-save" style="background:var(--btn-contact)" onclick="shareFormat('copy')">Copy Formatted Text</button>
+            <button class="btn-save" style="background:#ef4444" onclick="shareFormat('pdf')">Export as PDF</button>
+            <button class="btn-save" style="background:#15803d" onclick="shareFormat('excel')">Export as Excel</button>
+            <button class="btn-cancel" onclick="closeModal('shareModal')">Close</button>
+        </div>
+    </div>
+
+    <div class="modal" id="hubModal">
+        <div class="modal-content">
+            <h2 style="margin-bottom:20px;">Folder Hub</h2>
+            <div id="hubList"></div>
+            <button class="btn-cancel" onclick="closeModal('hubModal')">Close</button>
+        </div>
+    </div>
+
+    <div class="modal" id="fullModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Memory Details</h2>
+            <div id="linkPart">
+                <div class="field" style="margin-top:15px;"><label>URL</label><input type="url" id="lUrl" placeholder="https://..." onblur="fetchWebMetadata()"></div>
+                <div class="field">
+                    <label>Logo</label>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="link-img" id="logoPrev"><i data-lucide="globe"></i></div>
+                        <button class="btn-sync" style="background:#27272a" onclick="document.getElementById('fIn').click()">Custom</button>
+                        <input type="file" id="fIn" hidden accept="image/*" onchange="handleLogoUpload(event)">
+                    </div>
+                </div>
+                <div class="field"><label>Title</label><input type="text" id="lTitle"></div>
+                <div class="field"><label>Description</label><textarea id="lDesc" rows="4"></textarea></div>
+                <div class="field"><label>Tags</label><input type="text" id="lTags" placeholder="fitness, gym"></div>
+                <div class="field"><label>Select Folder</label><select id="lFolderSelect"></select></div>
+            </div>
+            <hr style="border:0; border-top:1px solid var(--border); margin:20px 0;">
+            <div id="folderPart">
+                <label style="font-size: 10px; color: var(--primary); font-weight: 800;">OR CREATE NEW FOLDER</label>
+                <div class="field" style="margin-top:10px;"><label>Folder Name</label><input type="text" id="fName"></div>
+                <div class="field"><label>Icon Search</label><input type="text" id="iSearch" onkeyup="renderIconGrid()"><div class="icon-grid" id="iGrid"></div></div>
+                <div class="field"><label>Color</label><div class="color-dots" id="cPick"></div></div>
+            </div>
+            <button class="btn-save" onclick="saveEverything()">Save Everything</button>
+            <button class="btn-cancel" onclick="closeModal('fullModal')">Cancel</button>
+        </div>
+    </div>
+
+    <div class="modal" id="folderOnlyModal">
+        <div class="modal-content">
+            <h2>Edit Folder</h2>
+            <div class="field" style="margin-top:20px;"><label>Name</label><input type="text" id="editFName"></div>
+            <div class="field"><label>Icon Search</label><input type="text" id="iSearchHub" onkeyup="renderIconGrid(true)"><div class="icon-grid" id="iGridHub"></div></div>
+            <div class="field"><label>Color</label><div class="color-dots" id="cPickHub"></div></div>
+            <button class="btn-save" onclick="saveFolderOnly()">Save Folder Changes</button>
+            <button class="btn-cancel" onclick="closeModal('folderOnlyModal'); openHub();">Back</button>
+        </div>
+    </div>
+
+    <script>
+        const iconList = ['dumbbell','trophy','activity','heart','bike','play-circle','tv','film','clapperboard','gamepad-2','joystick','utensils','coffee','shopping-bag','stethoscope','zap','brain','user','star','home','settings','bell','mail','camera','music','shopping-cart','briefcase','graduation-cap','code','terminal','globe','flame','shield','lock','key','link','tag','folder','image','smartphone','monitor','gift','bank','cloud','database','map','navigation','award','book','box','check','circle','clipboard','compass','disc','download','droplet','edit','eye','file','filter','flag','grid','hard-drive','hash','headphones','info','layers','layout','list','map-pin','maximize','menu','mic','minimize','moon','package','paperclip','pause','phone','pie-chart','play','power','save','search','send','server','share','shuffle','smile','speaker','sun','tablet','target','thermometer','trash','truck','twitch','twitter','type','umbrella','unlock','upload','video','watch','wifi','x','youtube'];
+        const colors = ['#8b5cf6', '#22c55e', '#3b82f6', '#ef4444', '#eab308', '#ec4899', '#06b6d4', '#ffffff', '#f97316', '#14b8a6', '#6366f1', '#d946ef', '#fb7185', '#a3e635', '#2dd4bf', '#fbbf24'];
+
+        let state = { folders: JSON.parse(localStorage.getItem('ly_f23')) || [], links: JSON.parse(localStorage.getItem('ly_l23')) || [], activeTab: 'all', selIcon: 'folder', selColor: '#8b5cf6', editingLink: null, editingFolder: null, tempLogo: null, touchStartX: 0 };
+
+        function init() { renderTabs(); renderLinks(); updateDropdown(); lucide.createIcons(); }
+        function saveState() { localStorage.setItem('ly_f23', JSON.stringify(state.folders)); localStorage.setItem('ly_l23', JSON.stringify(state.links)); }
+
+        function renderLinks() {
+            const list = document.getElementById('linkList');
+            const q = document.getElementById('search').value.toLowerCase();
+            let filtered = state.links;
+            if(state.activeTab === 'fav') filtered = filtered.filter(l => l.fav && !l.archived);
+            else if(state.activeTab === 'archive') filtered = filtered.filter(l => l.archived);
+            else if(typeof state.activeTab === 'number') filtered = filtered.filter(l => l.fId === state.activeTab && !l.archived);
+            else filtered = filtered.filter(l => !l.archived);
+
+            if(q) filtered = filtered.filter(l => l.title.toLowerCase().includes(q) || (l.tags && l.tags.some(t => t.toLowerCase().includes(q))));
+            
+            list.innerHTML = filtered.map(l => {
+                const f = state.folders.find(x => x.id === l.fId);
+                return `
+                <div class="link-container">
+                    <div class="swipe-actions-left">
+                        <div class="action-btn action-fav" onclick="toggleFav(${l.id})"><i data-lucide="heart"></i></div>
+                        <div class="action-btn action-pin" onclick="togglePin(${l.id})"><i data-lucide="pin"></i></div>
+                    </div>
+                    <div class="swipe-actions-right">
+                        <div class="action-btn action-archive" onclick="toggleArchive(${l.id})"><i data-lucide="archive"></i></div>
+                        <div class="action-btn action-del" onclick="deleteLink(${l.id})"><i data-lucide="trash-2"></i></div>
+                    </div>
+                    <div class="link-card" 
+                         ontouchstart="handleTouchStart(event)" 
+                         ontouchmove="handleTouchMove(event, this)" 
+                         ontouchend="handleTouchEnd(event, this)"
+                         onclick="openFullModal(${l.id})">
+                        <i data-lucide="external-link" class="external-icon" onclick="event.stopPropagation(); window.open('${l.url}')"></i>
+                        <div class="link-img">${l.logo ? `<img src="${l.logo}">` : '<i data-lucide="globe"></i>'}</div>
+                        <div class="link-info">
+                            <h4>${l.title}</h4>
+                            <p>${l.desc || ''}</p>
+                            ${f ? `
+                            <div class="badge-container" style="background:${f.color};">
+                                <span class="badge-folder-icon">
+                                    <i data-lucide="${f.icon}" size="10"></i>
+                                </span>
+                                <span class="badge-folder-name">${f.name}</span>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('') || '<p style="text-align:center; opacity:0.3; padding:40px;">No memories found.</p>';
+            lucide.createIcons();
+        }
+
+        function handleTouchStart(e) { state.touchStartX = e.touches[0].clientX; }
+        function handleTouchMove(e, el) {
+            let diff = state.touchStartX - e.touches[0].clientX;
+            if (diff > 0 && diff < 150) el.style.transform = `translateX(-${diff}px)`;
+            if (diff < 0 && diff > -150) el.style.transform = `translateX(${-diff}px)`;
+        }
+        function handleTouchEnd(e, el) {
+            let diff = state.touchStartX - e.changedTouches[0].clientX;
+            if (diff > 70) el.style.transform = `translateX(-140px)`;
+            else if (diff < -70) el.style.transform = `translateX(140px)`;
+            else el.style.transform = `translateX(0)`;
+        }
+
+        function renderTabs() {
+            const cont = document.getElementById('tabContainer');
+            const favCount = state.links.filter(l => l.fav && !l.archived).length;
+            const archCount = state.links.filter(l => l.archived).length;
+            let html = `
+                <div class="chip ${state.activeTab === 'all' ? 'active' : ''}" onclick="switchTab('all')">All (${state.links.filter(l => !l.archived).length})</div>
+                <div class="chip fav-chip ${state.activeTab === 'fav' ? 'active' : ''}" onclick="switchTab('fav')"><i data-lucide="heart"></i> Favorite (${favCount})</div>
+                <div class="chip archive-chip ${state.activeTab === 'archive' ? 'active' : ''}" onclick="switchTab('archive')"><i data-lucide="archive"></i> Archive (${archCount})</div>
+                <div class="chip hub-chip" onclick="openHub()"><i data-lucide="layers"></i> Hub</div>
+            `;
+            state.folders.forEach(f => {
+                const count = state.links.filter(l => l.fId === f.id && !l.archived).length;
+                html += `<div class="chip ${state.activeTab === f.id ? 'active' : ''}" onclick="switchTab(${f.id})"><i data-lucide="${f.icon}" style="color:${f.color}"></i> ${f.name} (${count})</div>`;
+            });
+            cont.innerHTML = html; lucide.createIcons();
+        }
+
+        function openFullModal(linkId = null) {
+            state.editingLink = linkId; state.editingFolder = null;
+            if(linkId) {
+                const l = state.links.find(x => x.id === linkId);
+                document.getElementById('lUrl').value = l.url; document.getElementById('lTitle').value = l.title;
+                document.getElementById('lDesc').value = l.desc || ""; document.getElementById('lTags').value = (l.tags||[]).join(', ');
+                document.getElementById('lFolderSelect').value = l.fId || '';
+            } else {
+                document.getElementById('lUrl').value = ''; document.getElementById('lTitle').value = ''; 
+                document.getElementById('lDesc').value = ''; document.getElementById('lTags').value = '';
+            }
+            document.getElementById('fullModal').classList.add('active'); renderIconGrid(); renderColorPicker();
+        }
+
+        function saveEverything() {
+            const fName = document.getElementById('fName').value;
+            let finalFolderId = parseInt(document.getElementById('lFolderSelect').value) || null;
+            if(fName) {
+                const newF = { id: Date.now(), name: fName, icon: state.selIcon, color: state.selColor };
+                state.folders.push(newF); finalFolderId = newF.id;
+            }
+            const url = document.getElementById('lUrl').value;
+            if(url) {
+                const linkData = { id: state.editingLink || Date.now(), url, title: document.getElementById('lTitle').value || "Untitled", desc: document.getElementById('lDesc').value, tags: document.getElementById('lTags').value.split(',').map(t=>t.trim()).filter(t=>t), logo: state.tempLogo, fId: finalFolderId, fav: state.editingLink ? state.links.find(x=>x.id===state.editingLink).fav : false, archived: state.editingLink ? state.links.find(x=>x.id===state.editingLink).archived : false };
+                if(state.editingLink) { const idx = state.links.findIndex(x=>x.id===state.editingLink); state.links[idx] = linkData; }
+                else state.links.push(linkData);
+            }
+            saveState(); init(); closeModal('fullModal');
+        }
+
+        function openHub() {
+            const list = document.getElementById('hubList');
+            list.innerHTML = state.folders.map(f => `
+                <div class="hub-card" style="border-left: 4px solid ${f.color}">
+                    <div style="display:flex; align-items:center; gap:12px;"><i data-lucide="${f.icon}" style="color:${f.color}"></i><span>${f.name}</span></div>
+                    <div style="display:flex; gap:8px;"><button class="btn-sync" style="background:#f59e0b" onclick="openEditFolderHub(${f.id})">Edit</button>
+                    <button class="btn-sync" style="background:#ef4444" onclick="deleteFolder(${f.id})">Delete</button></div>
+                </div>`).join('') || '<p style="text-align:center; opacity:0.5">Empty hub.</p>';
+            document.getElementById('hubModal').classList.add('active'); lucide.createIcons();
+        }
+
+        function openEditFolderHub(id) {
+            state.editingFolder = id; const f = state.folders.find(x => x.id === id);
+            document.getElementById('editFName').value = f.name; state.selIcon = f.icon; state.selColor = f.color;
+            closeModal('hubModal'); document.getElementById('folderOnlyModal').classList.add('active');
+            renderIconGrid(true); renderColorPicker(true);
+        }
+
+        function saveFolderOnly() {
+            const f = state.folders.find(x => x.id === state.editingFolder);
+            f.name = document.getElementById('editFName').value; f.icon = state.selIcon; f.color = state.selColor;
+            saveState(); init(); closeModal('folderOnlyModal'); openHub();
+        }
+
+        function renderIconGrid(isHub = false) {
+            const q = document.getElementById(isHub ? 'iSearchHub' : 'iSearch').value.toLowerCase();
+            const grid = document.getElementById(isHub ? 'iGridHub' : 'iGrid');
+            grid.innerHTML = iconList.filter(i => !q || i.includes(q)).map(i => `<div class="icon-box ${state.selIcon === i ? 'selected' : ''}" onclick="state.selIcon='${i}'; renderIconGrid(${isHub})"><i data-lucide="${i}"></i></div>`).join('');
+            lucide.createIcons();
+        }
+
+        function renderColorPicker(isHub = false) {
+            document.getElementById(isHub ? 'cPickHub' : 'cPick').innerHTML = colors.map(c => `<div class="dot ${state.selColor === c ? 'active' : ''}" style="background:${c}" onclick="state.selColor='${c}'; renderColorPicker(${isHub})"></div>`).join('');
+        }
+
+        function toggleArchive(id) { const l = state.links.find(x=>x.id===id); l.archived = !l.archived; saveState(); init(); }
+        function togglePin(id) { alert("Pinned!"); }
+        function openShareOptions() { document.getElementById('shareModal').classList.add('active'); }
+        function openContact() { document.getElementById('contactModal').classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        function switchTab(t) { state.activeTab = t; renderTabs(); renderLinks(); }
+        function toggleFav(id) { const l = state.links.find(x=>x.id===id); l.fav = !l.fav; saveState(); renderLinks(); renderTabs(); }
+        function deleteLink(id) { if(confirm("Delete memory?")) { state.links = state.links.filter(x=>x.id!==id); saveState(); init(); } }
+        function deleteFolder(id) { if(confirm("Delete folder?")) { state.folders = state.folders.filter(f=>f.id!==id); state.links.forEach(l=>{if(l.fId===id)l.fId=null;}); saveState(); init(); openHub(); } }
+        function updateDropdown() { document.getElementById('lFolderSelect').innerHTML = `<option value="">Choose Folder...</option>` + state.folders.map(f => `<option value="${f.id}">${f.name}</option>`).join(''); }
+        function exportData() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({f:state.folders,l:state.links})],{type:'application/json'})); a.download='Linkery_Data.json'; a.click(); }
+        function importData(e) { const r = new FileReader(); r.onload=(ev)=>{const d=JSON.parse(ev.target.result); state.folders=d.f; state.links=d.l; saveState(); init();}; r.readAsText(e.target.files[0]); }
+        function handleLogoUpload(e) { const r = new FileReader(); r.onload=(ev)=>{state.tempLogo=ev.target.result; document.getElementById('logoPrev').innerHTML=`<img src="${state.tempLogo}">`;}; r.readAsDataURL(e.target.files[0]); }
+        async function fetchWebMetadata() {
+            const url = document.getElementById('lUrl').value; if(!url) return;
+            try {
+                const res = await fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`);
+                const d = await res.json();
+                if(d.status === 'success') {
+                    if(!document.getElementById('lTitle').value) document.getElementById('lTitle').value = d.data.title || "";
+                    if(!document.getElementById('lDesc').value) document.getElementById('lDesc').value = d.data.description || "";
+                    state.tempLogo = d.data.logo?.url;
+                    if(state.tempLogo) document.getElementById('logoPrev').innerHTML = `<img src="${state.tempLogo}">`;
+                }
+            } catch(e){}
+        }
+
+        function shareFormat(type) {
+            let organized = state.folders.map(f => ({ name: f.name, links: state.links.filter(l => l.fId === f.id && !l.archived) }));
+            let unfiled = state.links.filter(l => !l.fId && !l.archived);
+            if(unfiled.length) organized.push({ name: 'Uncategorized', links: unfiled });
+
+            if(type === 'copy') {
+                let txt = "--- LINKERY.AI COLLECTION ---\n\n";
+                organized.forEach(group => {
+                    if(group.links.length === 0) return;
+                    txt += `FOLDER: ${group.name.toUpperCase()}\n`;
+                    group.links.forEach(l => {
+                        txt += `Title: ${l.title}\nURL: ${l.url}\nTags: ${(l.tags||[]).join(', ')}\nInfo: ${l.desc || ''}\n`;
+                        txt += "***************************************************\n";
+                    });
+                });
+                navigator.clipboard.writeText(txt).then(() => alert("Copied to clipboard!"));
+            } else if(type === 'excel') {
+                const flatData = [];
+                organized.forEach(group => {
+                    group.links.forEach(l => {
+                        flatData.push({ Folder: group.name, Title: l.title, URL: l.url, Tags: (l.tags||[]).join(', '), Description: l.desc || "" });
+                    });
+                });
+                const ws = XLSX.utils.json_to_sheet(flatData); 
+                const wb = XLSX.utils.book_new(); 
+                XLSX.utils.book_append_sheet(wb, ws, "Memories");
+                XLSX.writeFile(wb, "Linkery_Structured.xlsx");
+            } else if(type === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.text("Linkery.Ai Collection", 10, 10);
+                organized.forEach(group => {
+                    if(group.links.length === 0) return;
+                    const body = group.links.map(l => [l.title, l.url, (l.tags || []).join(', '), l.desc || ""]);
+                    doc.autoTable({
+                        startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 20,
+                        head: [[{content: group.name.toUpperCase(), colSpan: 4, styles: {fillColor: [139, 92, 246]}}]],
+                        body: body,
+                        headStyles: { textColor: [255, 255, 255] },
+                        styles: { fontSize: 8, font: 'helvetica' },
+                    });
+                });
+                doc.save("Linkery_Collection.pdf");
+            }
+            closeModal('shareModal');
+        }
+
+        init();
+    </script>
+</body>
+</html>
